@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ARC Diagnostics Viewer</title>
+  <style>
+    :root {
+      --bg: #f4efe4;
+      --fg: #1b1a17;
+      --card: #fffaf0;
+      --accent: #8f3b1b;
+      --muted: #776d5d;
+      --border: #d8cdbd;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Iowan Old Style", "Palatino Linotype", serif;
+      background: radial-gradient(circle at top, #fff7e8 0%, var(--bg) 55%, #e9dfd2 100%);
+      color: var(--fg);
+    }
+
+    header {
+      padding: 24px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(255, 250, 240, 0.88);
+      backdrop-filter: blur(12px);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 28px;
+      letter-spacing: 0.02em;
+    }
+
+    .controls {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .controls input,
+    .controls select,
+    .controls button {
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: var(--card);
+      color: var(--fg);
+      font: inherit;
+    }
+
+    .controls button {
+      cursor: pointer;
+      background: var(--accent);
+      color: white;
+      border: none;
+    }
+
+    .meta {
+      padding: 20px 24px 0;
+      color: var(--muted);
+      font-size: 15px;
+    }
+
+    .grid-wrap {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 18px;
+      padding: 24px;
+    }
+
+    .panel {
+      background: rgba(255, 250, 240, 0.95);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 14px;
+      box-shadow: 0 14px 40px rgba(89, 67, 36, 0.08);
+    }
+
+    .panel h3 {
+      margin: 0 0 12px;
+      font-size: 16px;
+      color: var(--accent);
+    }
+
+    .arc-grid {
+      display: grid;
+      gap: 2px;
+      width: min(100%, 320px);
+      aspect-ratio: 1 / 1;
+      margin: 0 auto;
+      background: #bdb1a2;
+      padding: 2px;
+      border-radius: 10px;
+    }
+
+    .cell {
+      border-radius: 2px;
+      width: 100%;
+      height: 100%;
+    }
+
+    .empty {
+      padding: 40px 24px;
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>ARC Diagnostics Viewer</h1>
+    <div class="controls">
+      <input id="file-input" type="file" accept=".json">
+      <button id="prev-btn" type="button">Previous</button>
+      <button id="next-btn" type="button">Next</button>
+      <select id="example-select"></select>
+    </div>
+  </header>
+
+  <div class="meta" id="meta">Load a saved diagnostics JSON file from the evaluation results directory.</div>
+  <div class="grid-wrap" id="grid-wrap">
+    <div class="empty">No diagnostics loaded yet.</div>
+  </div>
+
+  <script>
+    const COLORS = [
+      "#000000",
+      "#0074D9",
+      "#FF4136",
+      "#2ECC40",
+      "#FFDC00",
+      "#AAAAAA",
+      "#F012BE",
+      "#FF851B",
+      "#7FDBFF",
+      "#870C25"
+    ];
+
+    const state = {
+      payload: null,
+      index: 0,
+    };
+
+    function toGrid(value) {
+      if (!Array.isArray(value)) {
+        throw new Error("Expected array grid data.");
+      }
+      if (!Array.isArray(value[0])) {
+        const side = Math.sqrt(value.length);
+        if (!Number.isInteger(side)) {
+          throw new Error(`Cannot reshape flat grid of length ${value.length}.`);
+        }
+        const rows = [];
+        for (let i = 0; i < side; i += 1) {
+          rows.push(value.slice(i * side, (i + 1) * side));
+        }
+        return rows;
+      }
+      return value;
+    }
+
+    function createGridPanel(title, gridValue) {
+      const panel = document.createElement("section");
+      panel.className = "panel";
+
+      const heading = document.createElement("h3");
+      heading.textContent = title;
+      panel.appendChild(heading);
+
+      const grid = toGrid(gridValue);
+      const container = document.createElement("div");
+      container.className = "arc-grid";
+      container.style.gridTemplateColumns = `repeat(${grid[0].length}, 1fr)`;
+      container.style.gridTemplateRows = `repeat(${grid.length}, 1fr)`;
+
+      for (const row of grid) {
+        for (const cellValue of row) {
+          const cell = document.createElement("div");
+          cell.className = "cell";
+          cell.style.background = COLORS[cellValue] ?? "#dddddd";
+          container.appendChild(cell);
+        }
+      }
+
+      panel.appendChild(container);
+      return panel;
+    }
+
+    function buildPanels(example) {
+      const panels = [{ title: "Input", grid: example.inputs }];
+      const predictions = example.predictions ?? [];
+      const qValues = example.q_halt_probs ?? [];
+      const timesteps = example.timesteps ?? [];
+
+      predictions.forEach((grid, idx) => {
+        const extras = [];
+        if (timesteps[idx] !== null && timesteps[idx] !== undefined) {
+          extras.push(`t=${timesteps[idx]}`);
+        }
+        if (qValues[idx] !== null && qValues[idx] !== undefined) {
+          extras.push(`q=${Number(qValues[idx]).toFixed(3)}`);
+        }
+        const suffix = extras.length ? ` | ${extras.join(", ")}` : "";
+        panels.push({ title: `Pred ${idx + 1}${suffix}`, grid });
+      });
+
+      panels.push({ title: "Label", grid: example.labels });
+      return panels;
+    }
+
+    function render() {
+      const meta = document.getElementById("meta");
+      const gridWrap = document.getElementById("grid-wrap");
+      const select = document.getElementById("example-select");
+
+      if (!state.payload || !state.payload.trajectories.length) {
+        meta.textContent = "No diagnostics loaded yet.";
+        gridWrap.innerHTML = '<div class="empty">No diagnostics loaded yet.</div>';
+        select.innerHTML = "";
+        return;
+      }
+
+      const example = state.payload.trajectories[state.index];
+      meta.textContent =
+        `Example ${state.index + 1}/${state.payload.trajectories.length} | ` +
+        `mode=${state.payload.mode ?? "unknown"} | step=${state.payload.step ?? "unknown"} | ` +
+        `set=${example.set_name} | final_correct=${example.is_final_correct} | ` +
+        `any_step_correct=${example.is_any_step_correct}`;
+
+      gridWrap.innerHTML = "";
+      buildPanels(example).forEach((panel) => {
+        gridWrap.appendChild(createGridPanel(panel.title, panel.grid));
+      });
+
+      select.innerHTML = "";
+      state.payload.trajectories.forEach((item, idx) => {
+        const option = document.createElement("option");
+        option.value = String(idx);
+        option.textContent = `${idx + 1}: ${item.set_name} | any_step_correct=${item.is_any_step_correct}`;
+        option.selected = idx === state.index;
+        select.appendChild(option);
+      });
+    }
+
+    document.getElementById("file-input").addEventListener("change", async (event) => {
+      const [file] = event.target.files;
+      if (!file) return;
+      const text = await file.text();
+      state.payload = JSON.parse(text);
+      state.index = 0;
+      render();
+    });
+
+    document.getElementById("prev-btn").addEventListener("click", () => {
+      if (!state.payload) return;
+      state.index = (state.index - 1 + state.payload.trajectories.length) % state.payload.trajectories.length;
+      render();
+    });
+
+    document.getElementById("next-btn").addEventListener("click", () => {
+      if (!state.payload) return;
+      state.index = (state.index + 1) % state.payload.trajectories.length;
+      render();
+    });
+
+    document.getElementById("example-select").addEventListener("change", (event) => {
+      state.index = Number(event.target.value);
+      render();
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,35 @@
+name: recursive_reasoning.legacy.trm_drm@TinyRecursiveReasoningModel_ACTV1
+loss:
+  name: losses@ACTLossHead
+  loss_type: stablemax_cross_entropy
+
+halt_exploration_prob: 0.1
+halt_max_steps: 16
+
+H_cycles: 3
+L_cycles: 6 # 4 for 7M param 
+
+H_layers: 0
+L_layers: 2
+
+hidden_size: 768 # 512 for 7M param
+num_heads: 8
+expansion: 4
+
+puzzle_emb_ndim: ${.hidden_size}
+
+pos_encodings: rope
+forward_dtype: bfloat16
+
+mlp_t: False
+puzzle_emb_len: 16
+no_ACT_continue: True
+
+diffusion_num_training_steps: 1000
+diffusion_num_inference_steps: ${.halt_max_steps}
+diffusion_schedule: 'cosine'
+diffusion_noise_type: 'uniform'
+diffusion_inference_confidence_masking: False
+
+noise_latent_H_step: False
+noise_latent_L_step: False

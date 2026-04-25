@@ -1,0 +1,12 @@
+__pycache__/
+slurm-logs/*
+wandb/*
+data/*
+outputs/*
+checkpoints/*
+monitor_logs/*
+checkpoints
+data
+*.sbatch
+results/*
+assets/*

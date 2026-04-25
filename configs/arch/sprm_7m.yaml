@@ -1,0 +1,29 @@
+name: recursive_reasoning.rm@RecursiveReasoningModel
+loss:
+  name: losses@ACTLossHeadV2
+  loss_type: stablemax_cross_entropy
+
+halt_exploration_prob: 0.1
+halt_max_steps: 16
+
+H_cycles: 3
+L_cycles: 4 # 4 for 7M param
+
+H_layers: 0
+L_layers: 2
+
+hidden_size: 512 # 512 for 7M param
+num_heads: 8
+expansion: 4
+
+puzzle_emb_ndim: ${.hidden_size}
+
+pos_encodings: rope
+forward_dtype: bfloat16
+
+mlp_t: False
+puzzle_emb_len: 16
+no_ACT_continue: True
+
+state_perturbation: True
+discrete_diffusion_init: False
