@@ -511,7 +511,8 @@ class RecursiveReasoningModel(nn.Module):
             mask = noise < float(timestep) / scheduler.num_train_timesteps
             grid_predictions = torch.where(mask, mask_token_id, grid_predictions)
 
-        previous_y_embedding = self.core.embed_tokens_labels(grid_predictions)
+        full_y_embedding = self.core._embed_labels(grid_predictions, carry.active_batch["puzzle_identifiers"])
+        previous_y_embedding = full_y_embedding[:, self.core.puzzle_emb_len:, :]
         decode_latent = torch.cat([puzzle_prefix, previous_y_embedding], dim=1)
         new_state = RecurrentState(
             decode_latent=decode_latent,
@@ -597,10 +598,8 @@ class RecursiveReasoningModel(nn.Module):
             halted = is_last_step
 
             if self.config.discrete_diffusion_init:
-                if self.training:
-                    halted = torch.ones_like(carry.is_halted, dtype=torch.bool)
-                else:
-                    halted = is_last_step
+                # DRM: halting is controlled externally so we set True to allow all steps to count for metrics when needed
+                halted = torch.ones_like(carry.is_halted, dtype=torch.bool)
             elif self.training and (self.config.halt_max_steps > 1):
 
                 halt_by_q_only = self.config.no_ACT_continue

@@ -37,7 +37,7 @@ puzzle_emb_lr: 1e-2
 seed: 0
 min_eval_interval: 0 # when to start the eval
 
-ema: False # use Exponential-Moving-Average
+ema: True # use Exponential-Moving-Average
 ema_rate: 0.999 # EMA-rate
 freeze_weights: False # If True, freeze weights and only learn the embeddings
 
